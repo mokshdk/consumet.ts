@@ -1203,18 +1203,23 @@ class Anilist extends models_1.AnimeParser {
          * @param fetchFiller to get filler boolean on the episode object (optional) set to `true` to get filler boolean on the episode object.
          * @returns episode list **(without anime info)**
          */
+        this.AnilistToGogoSlug = async (AnimeID, dub) =>{
+            try {
+                const { data } = await this.client.get(`https://api.malsync.moe/mal/anime/anilist:${AnimeID}`);
+                console.log(data?.Sites?.Gogoanime)
+                if (!data?.Sites?.Gogoanime) {
+                    throw new Error("No ep found");
+                }
+                const gogoanimeIdentifiers = Object.keys(data.Sites.Gogoanime);
+                const identifier = gogoanimeIdentifiers.find((id) =>
+                    dub ? id.endsWith("dub") : !id.endsWith("dub"));
+                return identifier
+            } catch (err){
+                throw new Error(err.message)
+            }
+        }
         this.GogoAnimeEpisodes = async (slug) =>{
             try {
-                slug = slug.replaceAll(":", "")
-                .replaceAll("1/2", " ")
-                .replaceAll("(", " ")
-                .replaceAll(")", " ")
-                .replaceAll(","," ")
-                .trim()
-                .replaceAll(" ", "-")
-                .replace(/--+/g, '-')
-                .toLowerCase()
-
                 let Episode = []
                 const res = await this.client.get(`https://anitaku.pe/category/${slug}`);
                 const $ = (0, cheerio_1.load)(res.data);
@@ -1243,6 +1248,7 @@ class Anilist extends models_1.AnimeParser {
                   });
                   return Episode.reverse()
             }catch(err){
+                console.log(err)
                 throw new Error(err.message)
             }
         }
@@ -1257,19 +1263,9 @@ class Anilist extends models_1.AnimeParser {
             };
             const { data: { data: { Media }, }, } = await this.client.post(this.anilistGraphqlUrl, options);
             let possibleAnimeEpisodes = [];
-
-            try {
-                possibleAnimeEpisodes = await this.GogoAnimeEpisodes(Media.title.english)
-            } catch(err){
-                try {
-                possibleAnimeEpisodes = await this.GogoAnimeEpisodes(Media.title.romaji)
-                } catch(err){
-                    //
-                }
-            }
-
+            const slug = await this.AnilistToGogoSlug(id , dub)
+            possibleAnimeEpisodes = await this.GogoAnimeEpisodes(slug)
             let fillerEpisodes = [];
-
             
             if (fetchFiller) {
                 const { data: fillerData } = await this.client.get(`https://raw.githubusercontent.com/saikou-app/mal-id-filler-list/main/fillers/${Media.idMal}.json`, {

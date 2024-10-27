@@ -1206,11 +1206,15 @@ class Anilist extends models_1.AnimeParser {
         this.GogoAnimeEpisodes = async (slug) =>{
             try {
                 slug = slug.replaceAll(":", "")
-                .replaceAll(" ", "-") 
+                .replaceAll("1/2", " ")
+                .replaceAll("(", " ")
+                .replaceAll(")", " ")
+                .replaceAll(","," ")
+                .trim()
+                .replaceAll(" ", "-")
                 .replace(/--+/g, '-')
                 .toLowerCase()
 
-                console.log(slug)
                 let Episode = []
                 const res = await this.client.get(`https://anitaku.pe/category/${slug}`);
                 const $ = (0, cheerio_1.load)(res.data);
@@ -1257,16 +1261,12 @@ class Anilist extends models_1.AnimeParser {
             try {
                 possibleAnimeEpisodes = await this.GogoAnimeEpisodes(Media.title.english)
             } catch(err){
-                console.log(err.message)
                 try {
                 possibleAnimeEpisodes = await this.GogoAnimeEpisodes(Media.title.romaji)
                 } catch(err){
-                    console.log(err.message)
                     //
                 }
             }
-            
-            console.log(possibleAnimeEpisodes)
 
             let fillerEpisodes = [];
 

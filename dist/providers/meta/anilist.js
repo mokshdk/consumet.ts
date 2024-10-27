@@ -485,68 +485,24 @@ class Anilist extends models_1.AnimeParser {
                         const anifyInfo = await new anify_1.default(this.proxyConfig, this.adapter, this.provider.name.toLowerCase()).fetchAnimeInfo(id);
                         animeInfo.mappings = anifyInfo.mappings;
                         animeInfo.artwork = anifyInfo.artwork.filter(item => !item.img.startsWith('https://media.kitsu.app'));
-                        animeInfo.episodes = (_72 = anifyInfo.episodes) === null || _72 === void 0 ? void 0 : _72.map((item) => {
-                            var _b;
-                            return ({
-                                id: item.id,
-                                title: item.title,
-                                description: item.description,
-                                number: item.number,
-                                image: item.image,
-                                imageHash: (0, utils_2.getHashFromImage)(item.image),
-                                airDate: (_b = item.airDate) !== null && _b !== void 0 ? _b : null,
-                            });
-                        });
-                        if (!((_73 = animeInfo.episodes) === null || _73 === void 0 ? void 0 : _73.length)) {
-                            animeInfo.episodes = await this.fetchDefaultEpisodeList({
-                                idMal: animeInfo.malId,
-                                season: data.data.Media.season,
-                                startDate: { year: parseInt(animeInfo.releaseDate) },
-                                title: {
-                                    english: (_74 = animeInfo.title) === null || _74 === void 0 ? void 0 : _74.english,
-                                    romaji: (_75 = animeInfo.title) === null || _75 === void 0 ? void 0 : _75.romaji,
-                                },
-                            }, dub, id);
-                            animeInfo.episodes = (_76 = animeInfo.episodes) === null || _76 === void 0 ? void 0 : _76.map((episode) => {
-                                if (!episode.image) {
-                                    episode.image = animeInfo.image;
-                                    episode.imageHash = animeInfo.imageHash;
-                                }
-                                return episode;
-                            });
-                        }
-                    }
-                    catch (err) {
-                        animeInfo.episodes = await this.fetchDefaultEpisodeList({
-                            idMal: animeInfo.malId,
-                            season: data.data.Media.season,
-                            startDate: { year: parseInt(animeInfo.releaseDate) },
-                            title: {
-                                english: (_77 = animeInfo.title) === null || _77 === void 0 ? void 0 : _77.english,
-                                romaji: (_78 = animeInfo.title) === null || _78 === void 0 ? void 0 : _78.romaji,
-                            },
-                        }, dub, id);
-                        animeInfo.episodes = (_79 = animeInfo.episodes) === null || _79 === void 0 ? void 0 : _79.map((episode) => {
+                        const slug = await this.AnilistToGogoSlug(id , dub)
+                        animeInfo.episodes = await this.GogoAnimeEpisodes(slug)
+                        animeInfo.episodes = (_76 = animeInfo.episodes) === null || _76 === void 0 ? void 0 : _76.map((episode) => {
                             if (!episode.image) {
                                 episode.image = animeInfo.image;
                                 episode.imageHash = animeInfo.imageHash;
                             }
-                            return episode;
-                        });
+                                return episode;
+                            });
+                    }
+                    catch (err) {
                         return animeInfo;
                     }
                 }
-                else
-                    animeInfo.episodes = await this.fetchDefaultEpisodeList({
-                        idMal: animeInfo.malId,
-                        season: data.data.Media.season,
-                        startDate: { year: parseInt(animeInfo.releaseDate) },
-                        title: {
-                            english: (_80 = animeInfo.title) === null || _80 === void 0 ? void 0 : _80.english,
-                            romaji: (_81 = animeInfo.title) === null || _81 === void 0 ? void 0 : _81.romaji,
-                        },
-                        externalLinks: data.data.Media.externalLinks.filter((link) => link.type === 'STREAMING'),
-                    }, dub, id);
+                else {
+                    const slug = await this.AnilistToGogoSlug(id , dub)
+                    animeInfo.episodes = await this.GogoAnimeEpisodes(slug)
+                }
                 if (fetchFiller) {
                     const { data: fillerData } = await this.client.get(`https://raw.githubusercontent.com/saikou-app/mal-id-filler-list/main/fillers/${animeInfo.malId}.json`, { validateStatus: () => true });
                     if (!fillerData.toString().startsWith('404')) {
@@ -1206,7 +1162,6 @@ class Anilist extends models_1.AnimeParser {
         this.AnilistToGogoSlug = async (AnimeID, dub) =>{
             try {
                 const { data } = await this.client.get(`https://api.malsync.moe/mal/anime/anilist:${AnimeID}`);
-                console.log(data?.Sites?.Gogoanime)
                 if (!data?.Sites?.Gogoanime) {
                     throw new Error("No ep found");
                 }
@@ -1248,8 +1203,7 @@ class Anilist extends models_1.AnimeParser {
                   });
                   return Episode.reverse()
             }catch(err){
-                console.log(err)
-                throw new Error(err.message)
+                return []
             }
         }
         this.fetchEpisodesListById = async (id, dub = false, fetchFiller = false) => {

@@ -7,13 +7,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const axios_1 = __importDefault(require("axios"));
 const models_1 = require("../../models");
 const utils_1 = require("../../utils");
-const gogoanime_1 = __importDefault(require("../../providers/anime/gogoanime"));
+const gogoanime_1 = __importDefault(require("../anime/gogoanime"));
 const anify_1 = __importDefault(require("../anime/anify"));
 const zoro_1 = __importDefault(require("../anime/zoro"));
 const mangasee123_1 = __importDefault(require("../manga/mangasee123"));
 const crunchyroll_1 = __importDefault(require("../anime/crunchyroll"));
 const bilibili_1 = __importDefault(require("../anime/bilibili"));
 const _9anime_1 = __importDefault(require("../anime/9anime"));
+const cheerio_1 = require("cheerio");
 const utils_2 = require("../../utils/utils");
 class Anilist extends models_1.AnimeParser {
     /**
@@ -483,7 +484,7 @@ class Anilist extends models_1.AnimeParser {
                     try {
                         const anifyInfo = await new anify_1.default(this.proxyConfig, this.adapter, this.provider.name.toLowerCase()).fetchAnimeInfo(id);
                         animeInfo.mappings = anifyInfo.mappings;
-                        animeInfo.artwork = anifyInfo.artwork;
+                        animeInfo.artwork = anifyInfo.artwork.filter(item => !item.img.startsWith('https://media.kitsu.app'));
                         animeInfo.episodes = (_72 = anifyInfo.episodes) === null || _72 === void 0 ? void 0 : _72.map((item) => {
                             var _b;
                             return ({
@@ -1202,6 +1203,39 @@ class Anilist extends models_1.AnimeParser {
          * @param fetchFiller to get filler boolean on the episode object (optional) set to `true` to get filler boolean on the episode object.
          * @returns episode list **(without anime info)**
          */
+        this.GogoAnimeEpisodes = async (slug) =>{
+            try {
+                let Episode = []
+                const res = await this.client.get(`https://anitaku.pe/category/${slug}`);
+                const $ = (0, cheerio_1.load)(res.data);
+                // finding eps
+                const ep_start = $("#episode_page > li").first().find("a").attr("ep_start");
+                const ep_end = $("#episode_page > li").last().find("a").attr("ep_end");
+                const movie_id = $("#movie_id").attr("value");
+                const alias = $("#alias_anime").attr("value");
+                const html = await this.client.get(
+                    `https://ajax.gogocdn.net/ajax/load-list-episode?ep_start=${ep_start}&ep_end=${ep_end}&id=${movie_id}&default_ep=${0}&alias=${alias}`
+                );
+                const $$ = (0, cheerio_1.load)(html.data);
+                $$("#episode_related > li").each((i, el) => {
+                    var _a, _b, _c;
+                    (_a = Episode) === null || _a === void 0
+                      ? void 0
+                      : _a.push({
+                          id:
+                            (_b = $(el).find("a").attr("href")) === null || _b === void 0
+                              ? void 0
+                              : _b.split("/")[1],
+                          number: parseFloat(
+                            $(el).find(`div.name`).text().replace("EP ", "")
+                          )
+                        });
+                  });
+                  return Episode.reverse()
+            }catch(err){
+                throw new Error(err.message)
+            }
+        }
         this.fetchEpisodesListById = async (id, dub = false, fetchFiller = false) => {
             var _b, _c;
             const options = {
@@ -1213,48 +1247,26 @@ class Anilist extends models_1.AnimeParser {
             };
             const { data: { data: { Media }, }, } = await this.client.post(this.anilistGraphqlUrl, options);
             let possibleAnimeEpisodes = [];
-            let fillerEpisodes = [];
-            if ((this.provider instanceof zoro_1.default || this.provider instanceof gogoanime_1.default) &&
-                !dub &&
-                (Media.status === 'RELEASING' ||
-                    (0, utils_1.range)({ from: 2000, to: new Date().getFullYear() + 1 }).includes(parseInt((_b = Media.startDate) === null || _b === void 0 ? void 0 : _b.year)))) {
+
+            try {
+                let tempid = Media.title.english.replaceAll("-", "").replaceAll(" ", "-")
+                possibleAnimeEpisodes = await this.GogoAnimeEpisodes(tempid)
+            } catch(err){
+                console.log(err.message)
                 try {
-                    possibleAnimeEpisodes = (_c = (await new anify_1.default().fetchAnimeInfoByAnilistId(id, this.provider.name.toLowerCase())).episodes) === null || _c === void 0 ? void 0 : _c.map((item) => ({
-                        id: item.slug,
-                        title: item.title,
-                        description: item.description,
-                        number: item.number,
-                        image: item.image,
-                        imageHash: (0, utils_2.getHashFromImage)(item.image),
-                    }));
-                    if (!possibleAnimeEpisodes.length) {
-                        possibleAnimeEpisodes = await this.fetchDefaultEpisodeList(Media, dub, id);
-                        possibleAnimeEpisodes = possibleAnimeEpisodes === null || possibleAnimeEpisodes === void 0 ? void 0 : possibleAnimeEpisodes.map((episode) => {
-                            var _b, _c, _d, _e;
-                            if (!episode.image) {
-                                episode.image =
-                                    (_c = (_b = Media.coverImage.extraLarge) !== null && _b !== void 0 ? _b : Media.coverImage.large) !== null && _c !== void 0 ? _c : Media.coverImage.medium;
-                                episode.imageHash = (0, utils_2.getHashFromImage)((_e = (_d = Media.coverImage.extraLarge) !== null && _d !== void 0 ? _d : Media.coverImage.large) !== null && _e !== void 0 ? _e : Media.coverImage.medium);
-                            }
-                            return episode;
-                        });
-                    }
-                }
-                catch (err) {
-                    possibleAnimeEpisodes = await this.fetchDefaultEpisodeList(Media, dub, id);
-                    possibleAnimeEpisodes = possibleAnimeEpisodes === null || possibleAnimeEpisodes === void 0 ? void 0 : possibleAnimeEpisodes.map((episode) => {
-                        var _b, _c, _d, _e;
-                        if (!episode.image) {
-                            episode.image = (_c = (_b = Media.coverImage.extraLarge) !== null && _b !== void 0 ? _b : Media.coverImage.large) !== null && _c !== void 0 ? _c : Media.coverImage.medium;
-                            episode.imageHash = (0, utils_2.getHashFromImage)((_e = (_d = Media.coverImage.extraLarge) !== null && _d !== void 0 ? _d : Media.coverImage.large) !== null && _e !== void 0 ? _e : Media.coverImage.medium);
-                        }
-                        return episode;
-                    });
-                    return possibleAnimeEpisodes;
+                let tempid = Media.title.romaji.replaceAll("-", "").replaceAll(" ", "-")
+                possibleAnimeEpisodes = await this.GogoAnimeEpisodes(tempid)
+                } catch(err){
+                    console.log(err.message)
+                    //
                 }
             }
-            else
-                possibleAnimeEpisodes = await this.fetchDefaultEpisodeList(Media, dub, id);
+            
+            console.log(possibleAnimeEpisodes)
+
+            let fillerEpisodes = [];
+
+            
             if (fetchFiller) {
                 const { data: fillerData } = await this.client.get(`https://raw.githubusercontent.com/saikou-app/mal-id-filler-list/main/fillers/${Media.idMal}.json`, {
                     validateStatus: () => true,
@@ -1264,6 +1276,7 @@ class Anilist extends models_1.AnimeParser {
                     fillerEpisodes === null || fillerEpisodes === void 0 ? void 0 : fillerEpisodes.push(...fillerData.episodes);
                 }
             }
+            
             possibleAnimeEpisodes = possibleAnimeEpisodes === null || possibleAnimeEpisodes === void 0 ? void 0 : possibleAnimeEpisodes.map((episode) => {
                 var _b, _c, _d, _e;
                 if (!episode.image) {

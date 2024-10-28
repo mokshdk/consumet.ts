@@ -131,7 +131,7 @@ class Gogoanime extends models_1.AnimeParser {
          * @param episodeId episode id
          * @param server server type (default 'GogoCDN') (optional)
          */
-        this.fetchEpisodeSources = async (episodeId, server = models_1.StreamingServers.VidStreaming, downloadUrl = undefined) => {
+        this.fetchEpisodeSources = async (episodeId, server = models_1.StreamingServers.GogoCDN, downloadUrl = undefined) => {
             if (episodeId.startsWith('http')) {
                 const serverUrl = new URL(episodeId);
                 switch (server) {
@@ -176,7 +176,11 @@ class Gogoanime extends models_1.AnimeParser {
                 }
             }
             try {
-                const res = await this.client.get(`${this.baseUrl}/${episodeId}`);
+                const res = await this.client.get(`${this.baseUrl}/${episodeId}`, {
+                    headers: {
+                        'user-agent:': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+                  },
+                });
                 const $ = (0, cheerio_1.load)(res.data);
                 let serverUrl;
                 switch (server) {
@@ -205,8 +209,7 @@ class Gogoanime extends models_1.AnimeParser {
                     : await this.fetchEpisodeSources(serverUrl.href, server);
             }
             catch (err) {
-                console.log(err);
-                throw new Error('Episode not found.');
+                throw new Error(err);
             }
         };
         /**

@@ -1161,7 +1161,12 @@ class Anilist extends models_1.AnimeParser {
          */
         this.AnilistToGogoSlug = async (AnimeID, dub) =>{
             try {
-                const { data } = await this.client.get(`https://hq.as2anime.com/anilist${AnimeID}`,);
+                const { data } = await this.client.get(`https://api.malsync.moe/mal/anime/anilist:${AnimeID}`, {
+                    method: 'GET',
+                    headers: {
+                      'Content-Type': 'application/json' // Safe header
+                    }
+                  });
                 if (!data?.Sites?.Gogoanime) {
                     throw new Error("No ep found");
                 }

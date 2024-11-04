@@ -8,7 +8,7 @@ class Gogoanime extends models_1.AnimeParser {
     constructor(customBaseURL, proxy, adapter) {
         super(...arguments);
         this.name = 'Gogoanime';
-        this.baseUrl = 'https://anitaku.pe';
+        this.baseUrl = 'https://anitaku.bz';
         this.logo = 'https://play-lh.googleusercontent.com/MaGEiAEhNHAJXcXKzqTNgxqRmhuKB1rCUgb15UrN_mWUNRnLpO5T1qja64oRasO7mn0';
         this.classPath = 'ANIME.Gogoanime';
         this.ajaxUrl = 'https://ajax.gogocdn.net/ajax';
@@ -134,6 +134,7 @@ class Gogoanime extends models_1.AnimeParser {
         this.fetchEpisodeSources = async (episodeId, server = models_1.StreamingServers.GogoCDN, downloadUrl = undefined) => {
             if (episodeId.startsWith('http')) {
                 const serverUrl = new URL(episodeId);
+                console.log(serverUrl)
                 switch (server) {
                     case models_1.StreamingServers.GogoCDN:
                         return {
@@ -176,11 +177,7 @@ class Gogoanime extends models_1.AnimeParser {
                 }
             }
             try {
-                const res = await this.client.get(`${this.baseUrl}/${episodeId}`, {
-                    headers: {
-                        'user-agent:': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
-                  },
-                });
+                const res = await this.client.get(`${this.baseUrl}/${episodeId}`);
                 const $ = (0, cheerio_1.load)(res.data);
                 let serverUrl;
                 switch (server) {
@@ -204,8 +201,9 @@ class Gogoanime extends models_1.AnimeParser {
                         break;
                 }
                 const downloadLink = `${$('.dowloads > a').attr('href')}`;
+                console.log(downloadLink)
                 return downloadLink
-                    ? await this.fetchEpisodeSources(serverUrl.href, server, downloadLink)
+                    ? await this.fetchEpisodeSources(serverUrl.href, server, `${downloadLink}`)
                     : await this.fetchEpisodeSources(serverUrl.href, server);
             }
             catch (err) {

@@ -16,6 +16,8 @@ const bilibili_1 = __importDefault(require("../anime/bilibili"));
 const _9anime_1 = __importDefault(require("../anime/9anime"));
 const cheerio_1 = require("cheerio");
 const utils_2 = require("../../utils/utils");
+const ignoreList = ["NOVEL", "MANGA", "ONE_SHOT","MUSIC"]
+
 class Anilist extends models_1.AnimeParser {
     /**
      * This class maps anilist to kitsu with any other anime provider.
@@ -783,7 +785,6 @@ class Anilist extends models_1.AnimeParser {
                                 }
                                 : item.title.romaji,
                             image: (_c = (_b = item.coverImage.extraLarge) !== null && _b !== void 0 ? _b : item.coverImage.large) !== null && _c !== void 0 ? _c : item.coverImage.medium,
-                            imageHash: (0, utils_2.getHashFromImage)((_e = (_d = item.coverImage.extraLarge) !== null && _d !== void 0 ? _d : item.coverImage.large) !== null && _e !== void 0 ? _e : item.coverImage.medium),
                             trailer: {
                                 id: (_f = item.trailer) === null || _f === void 0 ? void 0 : _f.id,
                                 site: (_g = item.trailer) === null || _g === void 0 ? void 0 : _g.site,
@@ -803,7 +804,6 @@ class Anilist extends models_1.AnimeParser {
                                                 ? models_1.MediaStatus.HIATUS
                                                 : models_1.MediaStatus.UNKNOWN,
                             cover: (_m = (_l = (_k = item.bannerImage) !== null && _k !== void 0 ? _k : item.coverImage.extraLarge) !== null && _l !== void 0 ? _l : item.coverImage.large) !== null && _m !== void 0 ? _m : item.coverImage.medium,
-                            coverHash: (0, utils_2.getHashFromImage)((_q = (_p = (_o = item.bannerImage) !== null && _o !== void 0 ? _o : item.coverImage.extraLarge) !== null && _p !== void 0 ? _p : item.coverImage.large) !== null && _q !== void 0 ? _q : item.coverImage.medium),
                             rating: item.averageScore,
                             releaseDate: item.seasonYear,
                             color: (_r = item.coverImage) === null || _r === void 0 ? void 0 : _r.color,
@@ -840,6 +840,7 @@ class Anilist extends models_1.AnimeParser {
                     hasNextPage: data.data.Page.pageInfo.hasNextPage,
                     results: data.data.Page.media.map((item) => {
                         var _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
+                        const image = this.AntiKitsuAppImage(item)
                         return ({
                             id: item.id.toString(),
                             malId: item.idMal,
@@ -851,8 +852,7 @@ class Anilist extends models_1.AnimeParser {
                                     userPreferred: item.title.userPreferred,
                                 }
                                 : item.title.romaji,
-                            image: (_c = (_b = item.coverImage.extraLarge) !== null && _b !== void 0 ? _b : item.coverImage.large) !== null && _c !== void 0 ? _c : item.coverImage.medium,
-                            imageHash: (0, utils_2.getHashFromImage)((_e = (_d = item.coverImage.extraLarge) !== null && _d !== void 0 ? _d : item.coverImage.large) !== null && _e !== void 0 ? _e : item.coverImage.medium),
+                            image: image,
                             trailer: {
                                 id: (_f = item.trailer) === null || _f === void 0 ? void 0 : _f.id,
                                 site: (_g = item.trailer) === null || _g === void 0 ? void 0 : _g.site,
@@ -1103,10 +1103,43 @@ class Anilist extends models_1.AnimeParser {
          * @param page page number (optional)
          * @param perPage number of results per page (optional)
          */
+        this.AntiKitsuAppImage =  (item) => {
+            if (item?.coverImage) {
+                if (
+                  typeof item.coverImage === "string" &&
+                  !item.coverImage.includes("kitsu")
+                ) {
+                  return item.coverImage;
+                } else if (
+                  typeof item.coverImage === "object" &&
+                  item.coverImage?.medium &&
+                  !item.coverImage.medium.includes("kitsu")
+                ) {
+                  if (
+                    item?.coverImage?.medium.includes("/small/") &&
+                    item?.coverImage?.large
+                  ) {
+                    return item.coverImage.large;
+                  }
+                  return item.coverImage?.medium;
+                }
+              }
+            
+              const validArtwork = item.artwork?.filter(
+                (art) => !art.img?.includes("kitsu") && art.type == "poster"
+              );
+            
+              if (validArtwork && validArtwork.length > 0) {
+                return validArtwork[0]?.img;
+              }
+            
+              return null;
+        };
         this.fetchRecentEpisodes = async (provider = 'gogoanime', page = 1, perPage = 25) => {
             try {
                 const { data } = await this.client.get(`${this.anifyUrl}/recent?page=${page}&perPage=${perPage}&type=anime`);
                 const results = data === null || data === void 0 ? void 0 : data.map((item) => {
+                    const Validimage =   this.AntiKitsuAppImage(item)
                     var _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
                     return {
                         id: item.id.toString(),
@@ -1117,8 +1150,7 @@ class Anilist extends models_1.AnimeParser {
                             native: (_e = item.title) === null || _e === void 0 ? void 0 : _e.native,
                             // userPreferred: (_f = item.title) === null || _f === void 0 ? void 0 : _f.userPreferred,
                         },
-                        image: (_f = item.coverImage) !== null && _f !== void 0 ? _f : item.bannerImage,
-                        imageHash: (0, utils_2.getHashFromImage)((_g = item.coverImage) !== null && _g !== void 0 ? _g : item.bannerImage),
+                        image: Validimage,
                         rating: item.averageScore,
                         color: (_h = item.anime) === null || _h === void 0 ? void 0 : _h.color,
                         episodeId: `${provider === 'gogoanime'
@@ -1130,6 +1162,17 @@ class Anilist extends models_1.AnimeParser {
                         episodeNumber: item.currentEpisode,
                         genres: item.genre,
                         type: item.format,
+                        status: item.status == 'RELEASING'
+                        ? models_1.MediaStatus.ONGOING
+                        : item.status == 'FINISHED'
+                            ? models_1.MediaStatus.COMPLETED
+                            : item.status == 'NOT_YET_RELEASED'
+                                ? models_1.MediaStatus.NOT_YET_AIRED
+                                : item.status == 'CANCELLED'
+                                    ? models_1.MediaStatus.CANCELLED
+                                    : item.status == 'HIATUS'
+                                        ? models_1.MediaStatus.HIATUS
+                                        : models_1.MediaStatus.UNKNOWN,
                     };
                 });
                 // results = results.filter((item) => item.episodeNumber !== 0 &&
@@ -1159,30 +1202,26 @@ class Anilist extends models_1.AnimeParser {
          * @param fetchFiller to get filler boolean on the episode object (optional) set to `true` to get filler boolean on the episode object.
          * @returns episode list **(without anime info)**
          */
-        this.AnilistToGogoSlug = async (AnimeID, dub) =>{
+        this.AnilistToGogoSlug = async (AnimeID, dub) => {
             try {
-                const { data } = await this.client.get(`https://api.malsync.moe/mal/anime/anilist:${AnimeID}`, {
-                    method: 'GET',
-                    headers: {
-                      'Content-Type': 'application/json' // Safe header
-                    }
-                  });
-                if (!data?.Sites?.Gogoanime) {
-                    throw new Error("No ep found");
-                }
-                const gogoanimeIdentifiers = Object.keys(data.Sites.Gogoanime);
-                const identifier = gogoanimeIdentifiers.find((id) =>
-                    dub ? id.endsWith("dub") : !id.endsWith("dub"));
-                return identifier
-            } catch (err){
-                console.log(err)
-                throw new Error(err.message)
+              const { data } = await this.client.get(`https://hq.as2anime.com/mal-gogo?AnimeID=${AnimeID}&dub=${dub}`);
+              if (data.error) {
+                throw new Error(data.error);
+              }
+              if (data.slug) {
+                return data.slug;
+              }
+              throw new Error("Not Found");
+              
+            } catch (err) {
+              console.error(err);
+              throw new Error(err.message); 
             }
-        }
+          };
         this.GogoAnimeEpisodes = async (slug) =>{
             try {
                 let Episode = []
-                const res = await this.client.get(`https://anitaku.pe/category/${slug}`);
+                const res = await this.client.get(`https://anitaku.bz/category/${slug}`);
                 const $ = (0, cheerio_1.load)(res.data);
                 // finding eps
                 const ep_start = $("#episode_page > li").first().find("a").attr("ep_start");
@@ -1317,11 +1356,12 @@ class Anilist extends models_1.AnimeParser {
                 }
                 animeInfo.releaseDate = data.data.Media.startDate.year;
                 if ((_o = data.data.Media.nextAiringEpisode) === null || _o === void 0 ? void 0 : _o.airingAt)
-                    animeInfo.nextAiringEpisode = {
+                animeInfo.nextAiringEpisode = {
                         airingTime: (_p = data.data.Media.nextAiringEpisode) === null || _p === void 0 ? void 0 : _p.airingAt,
                         timeUntilAiring: (_q = data.data.Media.nextAiringEpisode) === null || _q === void 0 ? void 0 : _q.timeUntilAiring,
                         episode: (_r = data.data.Media.nextAiringEpisode) === null || _r === void 0 ? void 0 : _r.episode,
                     };
+
                 animeInfo.totalEpisodes = (_t = (_s = data.data.Media) === null || _s === void 0 ? void 0 : _s.episodes) !== null && _t !== void 0 ? _t : ((_u = data.data.Media.nextAiringEpisode) === null || _u === void 0 ? void 0 : _u.episode) - 1;
                 animeInfo.currentEpisode = ((_w = (_v = data.data.Media) === null || _v === void 0 ? void 0 : _v.nextAiringEpisode) === null || _w === void 0 ? void 0 : _w.episode)
                     ? ((_x = data.data.Media.nextAiringEpisode) === null || _x === void 0 ? void 0 : _x.episode) - 1
@@ -1343,7 +1383,7 @@ class Anilist extends models_1.AnimeParser {
                     month: (_3 = data.data.Media.endDate) === null || _3 === void 0 ? void 0 : _3.month,
                     day: (_4 = data.data.Media.endDate) === null || _4 === void 0 ? void 0 : _4.day,
                 };
-                animeInfo.recommendations = data.data.Media.recommendations.edges.map((item) => {
+                animeInfo.recommendations = data.data.Media.recommendations.edges.filter(item => !ignoreList.includes(item.node.mediaRecommendation.format)).map((item) => {
                     var _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
                     return ({
                         id: item.node.mediaRecommendation.id,
@@ -1407,7 +1447,7 @@ class Anilist extends models_1.AnimeParser {
                     });
                 });
                 animeInfo.color = (_5 = data.data.Media.coverImage) === null || _5 === void 0 ? void 0 : _5.color;
-                animeInfo.relations = data.data.Media.relations.edges.map((item) => {
+                animeInfo.relations = data.data.Media.relations.edges.filter(item => !ignoreList.includes(item.node.format)).map((item) => {
                     var _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
                     return ({
                         id: item.node.id,
